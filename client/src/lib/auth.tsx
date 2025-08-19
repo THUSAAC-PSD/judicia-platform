@@ -32,11 +32,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   const refreshUser = async () => {
+    const token = localStorage.getItem("judicia_token");
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const response = await apiRequest("/api/auth/me");
+      const response = await apiRequest("/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setUser(response.user);
     } catch (error) {
       setUser(null);
+      localStorage.removeItem("judicia_token"); // Clean up invalid token
     } finally {
       setIsLoading(false);
     }
@@ -48,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
+      localStorage.setItem("judicia_token", response.token);
       setUser(response.user);
       return { success: true };
     } catch (error: any) {
@@ -69,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify(userData),
       });
+      localStorage.setItem("judicia_token", response.token);
       setUser(response.user);
       return { success: true };
     } catch (error: any) {
@@ -81,10 +92,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
+      // The backend might not have a logout endpoint for JWT, but we call it just in case.
+      // The most important part is clearing client-side state.
       await apiRequest("/api/auth/logout", { method: "POST" });
     } catch (error) {
       // Even if logout fails on server, clear local state
+      console.error("Server logout failed, proceeding with client-side logout.", error);
     } finally {
+      localStorage.removeItem("judicia_token");
       setUser(null);
     }
   };

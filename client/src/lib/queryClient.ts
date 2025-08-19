@@ -16,10 +16,15 @@ export async function apiRequest(
   },
 ): Promise<any> {
   const method = options?.method || "GET";
+  const token = localStorage.getItem("judicia_token");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options?.headers || {}),
   };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
 
   const res = await fetch(url, {
     method,
@@ -29,7 +34,17 @@ export async function apiRequest(
   });
 
   await throwIfResNotOk(res);
-  return await res.json();
+
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return; // No content
+  }
+
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    return res.json();
+  }
+
+  return res.text();
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
