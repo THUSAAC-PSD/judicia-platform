@@ -77,6 +77,8 @@ async fn main() -> Result<()> {
     let protected_routes = Router::new()
         // Protected routes (requiring authentication)
         .route("/api/auth/me", get(auth_handlers::me))
+    .route("/api/profile/password", post(auth_handlers::change_password))
+    .route("/api/auth/register-admin", post(auth_handlers::register_admin))
         .route("/api/problems", post(problem_handlers::create_problem))
         .route("/api/submissions", post(submission_handlers::submit_code))
         .route("/api/submissions/:id", get(submission_handlers::get_submission))
@@ -93,7 +95,6 @@ async fn main() -> Result<()> {
         // Public auth routes
         .route("/api/auth/login", post(auth_handlers::login))
         .route("/api/auth/register", post(auth_handlers::register))
-        .route("/api/auth/register-admin", post(auth_handlers::register_admin))
         // Public routes
         .route("/api/problems", get(problem_handlers::list_problems))
         .route("/api/problems/:id", get(problem_handlers::get_problem))

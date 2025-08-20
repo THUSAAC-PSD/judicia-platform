@@ -57,7 +57,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify({ email, password }),
       });
-      localStorage.setItem("judicia_token", response.token);
+      if (response.token) {
+        localStorage.setItem("judicia_token", response.token);
+      }
       setUser(response.user);
       return { success: true };
     } catch (error: any) {
@@ -79,7 +81,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         method: "POST",
         body: JSON.stringify(userData),
       });
-      localStorage.setItem("judicia_token", response.token);
+      if (response.token) {
+        localStorage.setItem("judicia_token", response.token);
+      }
       setUser(response.user);
       return { success: true };
     } catch (error: any) {

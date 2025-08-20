@@ -1,22 +1,23 @@
 use axum::{extract::State, http::StatusCode, Json, Extension};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use shared::*;
+use serde_json::json;
 
 use crate::{auth::create_jwt, AppState};
 
 pub async fn register(
     State(state): State<AppState>,
     Json(payload): Json<RegisterRequest>,
-) -> Result<Json<AuthResponse>, StatusCode> {
+) -> Result<Json<AuthResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Check if user already exists
     if state
         .db
         .get_user_by_username(&payload.username)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Database error"}))))?
         .is_some()
     {
-        return Err(StatusCode::CONFLICT);
+        return Err((StatusCode::CONFLICT, Json(json!({"message":"Username already taken"}))));
     }
 
     // Check if email already exists
@@ -24,34 +25,29 @@ pub async fn register(
         .db
         .get_user_by_email(&payload.email)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Database error"}))))?
         .is_some()
     {
-        return Err(StatusCode::CONFLICT);
+        return Err((StatusCode::CONFLICT, Json(json!({"message":"Email already registered"}))));
     }
 
     // Hash password
     let hashed_password = hash(&payload.password, DEFAULT_COST)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to hash password"}))))?;
 
-    // Determine user roles
-    let roles = match payload.role.as_deref() {
-        Some("admin") => vec!["admin".to_string()],
-        Some("contest_admin") => vec!["contest_admin".to_string()],
-        Some("superadmin") => vec!["superadmin".to_string()], // Allow superadmin creation
-        _ => vec!["contestant".to_string()], // Default role
-    };
+    // Public registration always creates a contestant account
+    let roles = vec!["contestant".to_string()];
 
     // Create user with specified roles
     let user = state
         .db
         .create_user_with_roles(&payload.username, &payload.email, &hashed_password, roles)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to create user"}))))?;
 
     // Create JWT token
     let token = create_jwt(user.id, &state.config.jwt_secret)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to create token"}))))?;
 
     let user_profile = UserProfile {
         id: user.id,
@@ -68,11 +64,16 @@ pub async fn register(
 
 pub async fn register_admin(
     State(state): State<AppState>,
+    Extension(requesting_user): Extension<User>,
     Json(payload): Json<AdminRegisterRequest>,
-) -> Result<Json<AuthResponse>, StatusCode> {
+) -> Result<Json<AuthResponse>, (StatusCode, Json<serde_json::Value>)> {
+    // Only superadmin can create admin/superadmin users
+    if !requesting_user.roles.contains(&"superadmin".to_string()) {
+        return Err((StatusCode::FORBIDDEN, Json(json!({"message":"Superadmin access required"}))));
+    }
     // Validate admin type
     if payload.admin_type != "admin" && payload.admin_type != "superadmin" {
-        return Err(StatusCode::BAD_REQUEST);
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"message":"Invalid admin type"}))));
     }
 
     // Check if user already exists
@@ -80,10 +81,10 @@ pub async fn register_admin(
         .db
         .get_user_by_username(&payload.username)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Database error"}))))?
         .is_some()
     {
-        return Err(StatusCode::CONFLICT);
+        return Err((StatusCode::CONFLICT, Json(json!({"message":"Username already taken"}))));
     }
 
     // Check if email already exists
@@ -91,27 +92,27 @@ pub async fn register_admin(
         .db
         .get_user_by_email(&payload.email)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Database error"}))))?
         .is_some()
     {
-        return Err(StatusCode::CONFLICT);
+        return Err((StatusCode::CONFLICT, Json(json!({"message":"Email already registered"}))));
     }
 
     // Hash password
     let hashed_password = hash(&payload.password, DEFAULT_COST)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to hash password"}))))?;
 
-    // Create admin user
+    // Create admin user with requested admin_type
     let roles = vec![payload.admin_type];
     let user = state
         .db
         .create_user_with_roles(&payload.username, &payload.email, &hashed_password, roles)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to create user"}))))?;
 
     // Create JWT token
     let token = create_jwt(user.id, &state.config.jwt_secret)
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to create token"}))))?;
 
     let user_profile = UserProfile {
         id: user.id,
@@ -174,4 +175,37 @@ pub async fn me(
     Ok(Json(UserResponse {
         user: user_profile,
     }))
+}
+
+#[derive(serde::Deserialize)]
+pub struct ChangePasswordRequest {
+    pub current_password: String,
+    pub new_password: String,
+}
+
+pub async fn change_password(
+    State(state): State<AppState>,
+    Extension(user): Extension<User>,
+    Json(payload): Json<ChangePasswordRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    if payload.new_password.len() < 6 {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"message":"New password must be at least 6 characters"}))));
+    }
+
+    let is_valid = verify(&payload.current_password, &user.hashed_password)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Internal error"}))))?;
+    if !is_valid {
+        return Err((StatusCode::BAD_REQUEST, Json(json!({"message":"Current password is incorrect"}))));
+    }
+
+    let hashed = hash(&payload.new_password, DEFAULT_COST)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to hash password"}))))?;
+
+    state
+        .db
+        .update_user_password(user.id, &hashed)
+        .await
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"message":"Failed to update password"}))))?;
+
+    Ok(Json(json!({"message":"Password updated successfully"})))
 }

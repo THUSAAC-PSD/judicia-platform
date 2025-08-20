@@ -77,6 +77,17 @@ impl Database {
         Ok(user)
     }
 
+    pub async fn update_user_password(&self, id: Uuid, hashed_password: &str) -> Result<()> {
+        sqlx::query(
+            "UPDATE users SET hashed_password = $1 WHERE id = $2",
+        )
+        .bind(hashed_password)
+        .bind(id)
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     // Problem operations
     pub async fn list_problems(&self, contest_id: Option<Uuid>) -> Result<Vec<Problem>> {
         let problems = if let Some(contest_id) = contest_id {

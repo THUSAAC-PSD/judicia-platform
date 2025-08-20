@@ -8,8 +8,15 @@ if (!process.env.SESSION_SECRET) {
 }
 
 const app = express();
+// Trust reverse proxy (for correct protocol detection when behind proxies)
+app.set("trust proxy", 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Configure Supabase Postgres connection if provided
+if (!process.env.DATABASE_URL && process.env.SUPABASE_DB_URL) {
+  process.env.DATABASE_URL = process.env.SUPABASE_DB_URL;
+}
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -69,7 +76,6 @@ app.use((req, res, next) => {
   server.listen({
     port,
     host: "0.0.0.0",
-    reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
   });

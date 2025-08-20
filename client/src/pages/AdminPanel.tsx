@@ -66,9 +66,19 @@ export default function AdminPanel() {
 
   const createMutation = useMutation({
     mutationFn: async (data: ContestFormData) => {
+      const start = new Date(data.startTime);
+      const end = new Date(start.getTime() + data.duration * 1000);
+      const payload = {
+        title: data.title,
+        description: data.description,
+        startTime: start.toISOString(),
+        endTime: end.toISOString(),
+        difficulty: 'intermediate',
+        maxParticipants: null as number | null,
+      };
       return apiRequest('/api/contests', {
         method: 'POST',
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
     },
     onSuccess: () => {

@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { getSession, requireAuth, requireAdmin, requireContestAdmin, requireContestAdminOrHigher, requireContestManagePermission, requireSuperAdmin } from "./auth";
 import bcrypt from "bcrypt";
+import rateLimit from "express-rate-limit";
 import {
   ObjectStorageService,
   ObjectNotFoundError,
@@ -19,6 +20,16 @@ import {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Session middleware
   app.use(getSession());
+
+  // Basic rate limiting for auth endpoints
+  const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 100,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+
+  app.use(["/api/auth/login", "/api/auth/register"], authLimiter);
 
   // Authentication Routes
   app.post("/api/auth/login", async (req, res) => {
@@ -323,6 +334,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { currentPassword, newPassword } = req.body;
       const userId = req.user!.id;
       
+      // Basic validation
+      if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Current and new password are required' });
+      }
+      if (typeof newPassword !== 'string' || newPassword.length < 6) {
+        return res.status(400).json({ message: 'New password must be at least 6 characters' });
+      }
+      
       const user = await storage.getUser(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
@@ -333,8 +352,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: 'Current password is incorrect' });
       }
       
-      const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await storage.updateUser(userId, { password: hashedPassword });
+      // Pass plain new password; storage.updateUser will hash it
+      await storage.updateUser(userId, { password: newPassword });
       
       res.json({ message: 'Password updated successfully' });
     } catch (error) {
