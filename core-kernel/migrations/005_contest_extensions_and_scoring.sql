@@ -44,10 +44,10 @@ CREATE TABLE submission_scores (
     subtask_id UUID REFERENCES subtasks(id),
     score DECIMAL(10,2) NOT NULL,
     max_score DECIMAL(10,2) NOT NULL,
-    created_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
     
     -- Index for efficient score queries
-    INDEX(submission_id, subtask_id)
+    -- INDEX(submission_id, subtask_id)
 );
 
 -- Rejudge requests tracking
@@ -62,11 +62,11 @@ CREATE TABLE rejudge_requests (
     requested_by UUID NOT NULL REFERENCES users(id),
     started_at TIMESTAMP,
     completed_at TIMESTAMP,
-    created_at TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
     
     -- Indexes for admin queries
-    INDEX(contest_id, created_at),
-    INDEX(status, created_at)
+    -- INDEX(contest_id, created_at),
+    -- INDEX(status, created_at)
 );
 
 -- Update submissions table to track scoring method used
@@ -79,6 +79,10 @@ CREATE INDEX idx_contest_extensions_user_id ON contest_extensions(user_id);
 CREATE INDEX idx_subtasks_problem_id ON subtasks(problem_id);
 CREATE INDEX idx_submission_scores_submission_id ON submission_scores(submission_id);
 CREATE INDEX idx_submission_scores_subtask_id ON submission_scores(subtask_id);
+
+CREATE INDEX idx_submission_scores_submission_id_subtask_id ON submission_scores(submission_id, subtask_id);
+CREATE INDEX idx_rejudge_requests_contest_id_created_at ON rejudge_requests(contest_id, created_at);
+CREATE INDEX idx_rejudge_requests_status_created_at ON rejudge_requests(status, created_at);
 
 -- Add some example scoring methods as enum check
 ALTER TABLE contests ADD CONSTRAINT check_scoring_method 
