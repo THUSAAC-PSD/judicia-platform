@@ -100,7 +100,7 @@ pub async fn update_contest_scoring_method(
     let row = sqlx::query(query)
         .bind(scoring_method_str)
         .bind(contest_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -137,7 +137,7 @@ pub async fn get_contest_scores(
         recalculate_contest_scores(&state, contest_id, scoring_method.clone()).await?;
     }
 
-    let scores = calculate_user_scores(&state, contest_id, query.user_id, query.problem_id, scoring_method).await?;
+    let scores = calculate_user_scores(&state, contest_id, query.user_id, query.problem_id, scoring_method.clone()).await?;
 
     Ok(Json(json!({
         "contest_id": contest_id,
@@ -224,7 +224,7 @@ async fn calculate_user_scores(
     }
 
     let rows = query_builder
-        .fetch_all(&state.db)
+        .fetch_all(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -270,7 +270,7 @@ async fn calculate_last_submission_score(
     let row = sqlx::query(query)
         .bind(user_id)
         .bind(problem_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -334,7 +334,7 @@ async fn calculate_max_score(
     let best_row = sqlx::query(query)
         .bind(user_id)
         .bind(problem_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -350,7 +350,7 @@ async fn calculate_max_score(
     let last_row = sqlx::query(last_query)
         .bind(user_id)
         .bind(problem_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -423,7 +423,7 @@ async fn calculate_subtask_sum_score(
 
     let subtask_rows = sqlx::query(subtask_query)
         .bind(problem_id)
-        .fetch_all(&state.db)
+        .fetch_all(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -453,7 +453,7 @@ async fn calculate_subtask_sum_score(
             .bind(user_id)
             .bind(problem_id)
             .bind(subtask_id)
-            .fetch_optional(&state.db)
+            .fetch_optional(state.db.pool())
             .await
             .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -540,7 +540,7 @@ async fn recalculate_contest_scores(
 
     let row = sqlx::query(query)
         .bind(contest_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -555,7 +555,7 @@ async fn get_contest_scoring_method(
     let query = r"SELECT scoring_method FROM contests WHERE id = $1";
     let row = sqlx::query(query)
         .bind(contest_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -582,7 +582,7 @@ async fn get_submission_count(
     let row = sqlx::query(query)
         .bind(user_id)
         .bind(problem_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -606,7 +606,7 @@ async fn get_last_submission_info(
     let row = sqlx::query(query)
         .bind(user_id)
         .bind(problem_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -627,7 +627,7 @@ async fn is_contest_admin(state: &KernelState, user_id: &Uuid, contest_id: &Uuid
     let is_admin = sqlx::query(query)
         .bind(user_id)
         .bind(contest_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .is_some();

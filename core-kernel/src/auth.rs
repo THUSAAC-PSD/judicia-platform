@@ -10,7 +10,7 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::AppState;
+use crate::KernelState;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
@@ -54,7 +54,7 @@ pub fn verify_jwt(token: &str, secret: &str) -> Result<Claims> {
 
 #[allow(dead_code)]
 pub async fn auth_middleware(
-    State(state): State<AppState>,
+    State(state): State<KernelState>,
     mut request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {

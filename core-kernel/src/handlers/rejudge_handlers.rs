@@ -200,7 +200,7 @@ pub async fn cancel_rejudge_job(
 
     sqlx::query(query)
         .bind(job_id)
-        .execute(&state.db)
+        .execute(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -302,7 +302,7 @@ async fn create_rejudge_job(
         .bind(rejudge_type_str)
         .bind(&request.reason)
         .bind(admin_user.id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -348,7 +348,7 @@ async fn get_rejudge_job_from_db(state: &KernelState, job_id: Uuid) -> Result<Re
 
     let row = sqlx::query(query)
         .bind(job_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -448,7 +448,7 @@ async fn list_rejudge_jobs_from_db(
 
     // Execute query - simplified version
     let rows = sqlx::query(&sql_query)
-        .fetch_all(&state.db)
+        .fetch_all(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -521,7 +521,7 @@ async fn find_submissions_by_criteria(
 
     // Execute the query and return submission IDs
     let rows = sqlx::query(&query)
-        .fetch_all(&state.db)
+        .fetch_all(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -543,7 +543,7 @@ async fn validate_submission_ids(state: &KernelState, submission_ids: &[Uuid]) -
     
     let row = sqlx::query(query)
         .bind(&ids)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -561,7 +561,7 @@ async fn is_contest_admin(state: &KernelState, user_id: &Uuid, contest_id: &Uuid
     let is_admin = sqlx::query(query)
         .bind(user_id)
         .bind(contest_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .is_some();

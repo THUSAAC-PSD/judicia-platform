@@ -1,3 +1,4 @@
+mod auth;
 mod config;
 mod database;
 mod event_handlers;
@@ -26,7 +27,8 @@ use crate::{
 #[derive(Clone)]
 pub struct KernelState {
     pub kernel: Arc<JudiciaKernel>,
-    pub db: sqlx::PgPool,
+    pub db: Database,
+    pub config: Arc<Config>,
 }
 
 #[tokio::main]
@@ -45,29 +47,29 @@ async fn main() -> Result<()> {
     
     // Check if we're in test mode (skip database)
     let test_mode = std::env::var("TEST_MODE").unwrap_or_else(|_| "false".to_string()) == "true";
-    
-    let (kernel, db_pool) = if test_mode {
+
+    let (kernel, db_instance) = if test_mode {
         println!("⚠️  Running in TEST MODE - database disabled");
         // Create kernel without database for testing plugin loading only
         let kernel = Arc::new(JudiciaKernel::new_test_mode(config.clone()).await?);
-        // Create a mock pool for test mode
-        let mock_pool = sqlx::PgPool::connect("postgresql://localhost/test").await.unwrap_or_else(|_| {
-            // If that fails, create a minimal mock pool
-            panic!("Cannot create test database pool")
-        });
-        (kernel, mock_pool)
+        // Create a mock database for test mode
+        let mock_db = Database::new("postgresql://localhost/test").await.unwrap_or_else(|_| {
+            // If that fails, create a minimal mock database - this should probably be a mock implementation
+            panic!("Cannot create test database in test mode")
+         });
+        (kernel, mock_db)
     } else {
+        println!("🔗 Connecting to database...");
         let db = Database::new(&config.database_url).await?;
-        
+        println!("✅ Database connection established");
+
         // Run migrations
         db.migrate().await?;
         println!("✅ Database connected and migrations applied");
         
-        let db_pool = db.pool().clone();
-        
         // Initialize the Judicia Kernel
-        let kernel = Arc::new(JudiciaKernel::new(config.clone(), db).await?);
-        (kernel, db_pool)
+        let kernel = Arc::new(JudiciaKernel::new(config.clone(), db.clone()).await?);
+        (kernel, db)
     };
     
     // Load plugins
@@ -76,7 +78,11 @@ async fn main() -> Result<()> {
     // Start event handlers
     kernel.start_event_handlers().await?;
     
-    let kernel_state = KernelState { kernel, db: db_pool };
+    let kernel_state = KernelState { 
+        kernel, 
+        db: db_instance,
+        config: config.clone(),
+    };
 
     println!("🔧 Setting up CORS...");
     let cors = CorsLayer::new()

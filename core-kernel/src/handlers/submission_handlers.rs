@@ -36,19 +36,28 @@ pub async fn submit_code(
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // Create judging job
-    let judging_job = JudgingJob {
+    // Create evaluation job
+    let evaluation_job = evaluation_engine::job_queue::EvaluationJob {
+        id: uuid::Uuid::new_v4(),
         submission_id: submission.id,
-        user_id: user.id,
         problem_id: payload.problem_id,
         language_id: payload.language_id,
         source_code: payload.source_code,
+        priority: 1, // Normal priority
+        timeout_ms: 5000, // 5 seconds default
+        memory_limit_kb: 256 * 1024, // 256MB default
+        test_case_count: 1, // Will be determined by problem
+        created_at: chrono::Utc::now(),
+        retry_count: 0,
+        max_retries: 3,
+        metadata: serde_json::json!({}),
     };
 
     // Send to queue
     state
-        .queue
-        .publish_judging_job(&judging_job)
+        .kernel
+        .job_queue()
+        .submit_job(evaluation_job)
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 

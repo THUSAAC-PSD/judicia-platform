@@ -123,7 +123,7 @@ pub async fn update_contest_extension(
         .bind(&request.reason)
         .bind(extension_id)
         .bind(contest_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -165,7 +165,7 @@ pub async fn delete_contest_extension(
     let result = sqlx::query(query)
         .bind(extension_id)
         .bind(contest_id)
-        .execute(&state.db)
+        .execute(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -231,7 +231,7 @@ async fn create_individual_extension(
         .bind(request.extra_minutes)
         .bind(&request.reason)
         .bind(admin_user.id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -269,7 +269,7 @@ async fn create_contest_wide_extension(
     let row = sqlx::query(query)
         .bind(request.extra_minutes)
         .bind(contest_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -308,7 +308,7 @@ async fn get_effective_contest_time(
     let contest_query = r"SELECT start_time, end_time, extra_time_minutes FROM contests WHERE id = $1";
     let contest_row = sqlx::query(contest_query)
         .bind(contest_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -321,7 +321,7 @@ async fn get_effective_contest_time(
     let individual_extra = sqlx::query(ext_query)
         .bind(contest_id)
         .bind(user_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .map(|row| row.get::<i32, _>("extra_minutes"))
@@ -365,7 +365,7 @@ async fn get_extensions_from_db(
 
     let rows = sqlx::query(&query)
         .bind(contest_id)
-        .fetch_all(&state.db)
+        .fetch_all(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
@@ -393,7 +393,7 @@ async fn get_contest_wide_extension(
     let query = r"SELECT extra_time_minutes FROM contests WHERE id = $1";
     let row = sqlx::query(query)
         .bind(contest_id)
-        .fetch_one(&state.db)
+        .fetch_one(state.db.pool())
         .await
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
@@ -405,7 +405,7 @@ async fn contest_exists(state: &KernelState, contest_id: &Uuid) -> Result<bool, 
     let query = r"SELECT 1 FROM contests WHERE id = $1";
     let exists = sqlx::query(query)
         .bind(contest_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .is_some();
@@ -417,7 +417,7 @@ async fn user_exists(state: &KernelState, user_id: &Uuid) -> Result<bool, Status
     let query = r"SELECT 1 FROM users WHERE id = $1";
     let exists = sqlx::query(query)
         .bind(user_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .is_some();
@@ -430,7 +430,7 @@ async fn is_contest_admin(state: &KernelState, user_id: &Uuid, contest_id: &Uuid
     let is_admin = sqlx::query(query)
         .bind(user_id)
         .bind(contest_id)
-        .fetch_optional(&state.db)
+        .fetch_optional(state.db.pool())
         .await
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
         .is_some();
