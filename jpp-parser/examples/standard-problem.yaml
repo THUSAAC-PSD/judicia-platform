@@ -1,0 +1,31 @@
+# Judicia Problem Package (JPP) Example
+# This is a standard I/O problem similar to traditional OJ problems
+
+id: "A001"
+title: "Simple Addition"
+time_limit_ms: 1000
+memory_limit_kb: 262144  # 256 MB
+
+# Plugin configuration
+judging:
+  type: "judicia/standard@1.0"
+  # No additional config needed for standard problems
+
+# Optional statement configuration
+statement:
+  format: markdown
+  source: "statement.md"
+  language: "en"
+
+# Test cases configuration
+test_cases:
+  input_pattern: "tests/*.in"
+  output_pattern: "tests/*.out"
+
+# Optional metadata
+metadata:
+  difficulty: "easy"
+  tags: ["math", "implementation"]
+  author: "Judicia Team"
+  source: "Example Contest"
+  editorial_url: "https://example.com/editorial"

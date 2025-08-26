@@ -1,0 +1,213 @@
+//! {{displayName}} - {{description}}
+//!
+//! A Judicia Platform plugin for {{description}}.
+
+use judicia_sdk::prelude::*;
+use wasm_bindgen::prelude::*;
+
+// Plugin struct with metadata
+#[judicia_plugin]
+pub struct {{pascalCase}} {
+    name: "{{kebabCase}}",
+    version: "0.1.0",
+    author: "{{author}}",
+    description: "{{description}}",
+    capabilities: [
+        {{#each capabilities}}
+        Capability::{{this}},
+        {{/each}}
+    ]
+}
+
+// Implementation of plugin methods
+impl PluginMethods for {{pascalCase}} {
+    async fn on_initialize(&mut self, context: &PluginContext) -> PluginResult<()> {
+        info!("{{displayName}} plugin initialized for user: {:?}", context.plugin_id);
+        
+        // Initialize plugin state
+        self.setup_event_listeners().await?;
+        {{#if frontend}}
+        self.register_components().await?;
+        {{/if}}
+        {{#if routes}}
+        self.register_routes().await?;
+        {{/if}}
+        
+        Ok(())
+    }
+
+    async fn on_event(&mut self, event: &PlatformEvent) -> PluginResult<()> {
+        match event.event_type.as_str() {
+            "user.login" => self.handle_user_login(event).await?,
+            "problem.opened" => self.handle_problem_opened(event).await?,
+            "submission.created" => self.handle_submission_created(event).await?,
+            _ => debug!("Unhandled event: {}", event.event_type),
+        }
+        Ok(())
+    }
+
+    async fn on_cleanup(&mut self) -> PluginResult<()> {
+        info!("{{displayName}} plugin cleaning up");
+        Ok(())
+    }
+    
+    {{#if routes}}
+    async fn on_http_request(&mut self, request: &HttpRequest) -> PluginResult<HttpResponse> {
+        match request.path.as_str() {
+            "/api/{{kebabCase}}/status" => self.handle_status_request(request).await,
+            "/api/{{kebabCase}}/data" => self.handle_data_request(request).await,
+            _ => Err(PluginError::NotImplemented("Route not found".into())),
+        }
+    }
+    {{/if}}
+    
+    {{#if frontend}}
+    async fn on_render(&self, component: &str, props: &serde_json::Value) -> PluginResult<String> {
+        match component {
+            "HelloWorld" => self.render_hello_world(props).await,
+            "StatusCard" => self.render_status_card(props).await,
+            _ => Err(PluginError::NotImplemented(format!("Component '{}' not found", component))),
+        }
+    }
+    {{/if}}
+}
+
+impl {{pascalCase}} {
+    async fn setup_event_listeners(&mut self) -> PluginResult<()> {
+        info!("Setting up event listeners for {{displayName}}");
+        Ok(())
+    }
+    
+    {{#if frontend}}
+    async fn register_components(&mut self) -> PluginResult<()> {
+        info!("Registering frontend components");
+        // Components will be automatically registered by the macro
+        Ok(())
+    }
+    {{/if}}
+    
+    {{#if routes}}
+    async fn register_routes(&mut self) -> PluginResult<()> {
+        info!("Registering HTTP routes");
+        register_http_route("GET", "/api/{{kebabCase}}/status", "handle_status_request").await?;
+        register_http_route("GET", "/api/{{kebabCase}}/data", "handle_data_request").await?;
+        Ok(())
+    }
+    
+    async fn handle_status_request(&self, _request: &HttpRequest) -> PluginResult<HttpResponse> {
+        let status = serde_json::json!({
+            "plugin": "{{kebabCase}}",
+            "status": "healthy",
+            "version": "0.1.0",
+            "timestamp": chrono::Utc::now()
+        });
+        
+        Ok(HttpResponse {
+            status_code: 200,
+            headers: [("Content-Type".to_string(), "application/json".to_string())].iter().cloned().collect(),
+            body: status.to_string(),
+            content_type: "application/json".to_string(),
+        })
+    }
+    
+    async fn handle_data_request(&self, _request: &HttpRequest) -> PluginResult<HttpResponse> {
+        let data = serde_json::json!({
+            "message": "Hello from {{displayName}}!",
+            "data": {
+                "example": "This is example data from the plugin"
+            }
+        });
+        
+        Ok(HttpResponse {
+            status_code: 200,
+            headers: [("Content-Type".to_string(), "application/json".to_string())].iter().cloned().collect(),
+            body: data.to_string(),
+            content_type: "application/json".to_string(),
+        })
+    }
+    {{/if}}
+
+    async fn handle_user_login(&mut self, event: &PlatformEvent) -> PluginResult<()> {
+        debug!("User login event received: {:?}", event);
+        
+        // Example: Send welcome notification
+        let notification = Notification {
+            recipient_id: event.payload.get("user_id")
+                .and_then(|id| id.as_str())
+                .and_then(|id| Uuid::parse_str(id).ok())
+                .unwrap_or_else(|| Uuid::new_v4()),
+            title: "Welcome!".to_string(),
+            message: format!("Welcome to {{displayName}}!"),
+            notification_type: NotificationType::Info,
+            urgency: NotificationUrgency::Normal,
+            metadata: [("plugin".to_string(), serde_json::json!("{{kebabCase}}"))].iter().cloned().collect(),
+        };
+        
+        send_notification(&notification).await?;
+        Ok(())
+    }
+
+    async fn handle_problem_opened(&mut self, event: &PlatformEvent) -> PluginResult<()> {
+        debug!("Problem opened event received: {:?}", event);
+        
+        // Example: Track problem views or provide hints
+        let problem_id = event.payload.get("problem_id")
+            .and_then(|id| id.as_str())
+            .unwrap_or("unknown");
+        
+        info!("Problem {} was opened", problem_id);
+        Ok(())
+    }
+
+    async fn handle_submission_created(&mut self, event: &PlatformEvent) -> PluginResult<()> {
+        debug!("Submission created event received: {:?}", event);
+        
+        // Example: Trigger custom evaluation or analysis
+        let submission_id = event.payload.get("submission_id")
+            .and_then(|id| id.as_str())
+            .unwrap_or("unknown");
+        
+        info!("New submission created: {}", submission_id);
+        Ok(())
+    }
+    
+    {{#if frontend}}
+    async fn render_hello_world(&self, props: &serde_json::Value) -> PluginResult<String> {
+        let name = props.get("name")
+            .and_then(|v| v.as_str())
+            .unwrap_or("World");
+            
+        let html = format!(r#"
+            <div class="{{kebabCase}}-hello-world">
+                <h2>Hello, {}!</h2>
+                <p>This is a component from the {{displayName}} plugin.</p>
+                <button onclick="window.judiciaPluginEvent('{{kebabCase}}', 'hello-clicked', {{}})">
+                    Say Hello
+                </button>
+            </div>
+        "#, name);
+        
+        Ok(html)
+    }
+    
+    async fn render_status_card(&self, _props: &serde_json::Value) -> PluginResult<String> {
+        let html = r#"
+            <div class="{{kebabCase}}-status-card">
+                <div class="status-header">
+                    <h3>{{displayName}} Status</h3>
+                    <span class="status-indicator healthy">●</span>
+                </div>
+                <div class="status-body">
+                    <p>Plugin is running normally</p>
+                    <small>Last updated: <span id="{{kebabCase}}-timestamp"></span></small>
+                </div>
+            </div>
+            <script>
+                document.getElementById('{{kebabCase}}-timestamp').textContent = new Date().toLocaleString();
+            </script>
+        "#;
+        
+        Ok(html.to_string())
+    }
+    {{/if}}
+}

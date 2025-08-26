@@ -1,0 +1,24 @@
+name = "hello-world"
+version = "1.0.0"
+
+
+[backend]
+entrypoint = "target/wasm32-wasi/release/hello-world.wasm"
+
+[frontend]
+module_name = "hello-world"
+bundle_url = "./frontend/dist/bundle.js"
+
+# Plugin UI routes
+[[ui_routes]]
+scope = "contest"
+path = "/my-plugin"
+component = "./MyPluginView"
+required_permission = "participant"
+nav_link = true
+nav_text = "hello-world"
+
+# Plugin backend API
+[[http_routes]]
+path = "/api/my-plugin"
+handler_function = "handle_request"

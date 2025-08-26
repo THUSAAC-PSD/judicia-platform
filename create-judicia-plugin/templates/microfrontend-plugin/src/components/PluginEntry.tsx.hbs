@@ -1,0 +1,34 @@
+import React from 'react';
+import { useJudiciaSDK } from '@judicia/frontend-sdk';
+import {{pascal-case name}}Component from './{{pascal-case name}}Component';
+
+/**
+ * Plugin Entry Point
+ * This component serves as the main entry point for the micro frontend
+ */
+const PluginEntry: React.FC = () => {
+  const sdk = useJudiciaSDK();
+
+  // You can add plugin-level initialization logic here
+  React.useEffect(() => {
+    console.log('{{pascal-case name}} Plugin loaded');
+    
+    // Example: Subscribe to platform events
+    const unsubscribe = sdk.events.on('user.login', (event) => {
+      console.log('User logged in:', event.payload.user);
+    });
+
+    return () => {
+      unsubscribe();
+      console.log('{{pascal-case name}} Plugin unloaded');
+    };
+  }, [sdk]);
+
+  return (
+    <div className="{{kebab-case name}}-plugin">
+      <{{pascal-case name}}Component />
+    </div>
+  );
+};
+
+export default PluginEntry;

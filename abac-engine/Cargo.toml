@@ -1,0 +1,17 @@
+[package]
+name = "abac-engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+uuid = { workspace = true }
+tracing = { workspace = true }
+dashmap = { workspace = true }
+chrono = { workspace = true }
+regex = "1.10"
+shared = { path = "../shared" }

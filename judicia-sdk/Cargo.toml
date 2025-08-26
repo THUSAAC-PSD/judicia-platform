@@ -1,0 +1,24 @@
+[package]
+name = "judicia-sdk"
+version = "0.1.0"
+edition = "2021"
+description = "Judicia Platform Plugin SDK with procedural macros"
+license = "MIT"
+repository = "https://github.com/judicia/judicia-platform"
+
+[dependencies]
+# Re-export the macro and runtime crates
+judicia-sdk-macros = { path = "./judicia-sdk-macros", version = "0.1.0" }
+judicia-sdk-runtime = { path = "./judicia-sdk-runtime", version = "0.1.0" }
+
+# Re-export common dependencies for user convenience  
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.0", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+anyhow = "1.0"
+tracing = "0.1"
+wasm-bindgen = "0.2"
+
+[dev-dependencies]
+tokio-test = "0.4"

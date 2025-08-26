@@ -1,0 +1,35 @@
+# Interactive Problem Example
+# This demonstrates how to define an interactive problem with an interactor
+
+id: "B001"  
+title: "Guess the Number"
+time_limit_ms: 2000
+memory_limit_kb: 262144
+
+judging:
+  type: "judicia/interactive@1.0"
+  interactor:
+    source: "judge/interactor.cpp"
+    language: "cpp.g++17"
+    compile_flags: ["-O2", "-std=c++17"]
+  protocol:
+    flush_required: true
+    buffer_size: 1024
+
+statement:
+  format: markdown
+  source: "statement.md"
+  language: "en"
+
+# Interactive problems might not need traditional test cases
+# but could have different configuration
+test_cases:
+  generator:
+    source: "judge/generator.cpp"
+    language: "cpp.g++17"
+    args: ["--count", "50"]
+
+metadata:
+  difficulty: "medium"
+  tags: ["interactive", "binary-search", "games"]
+  author: "Contest Author"

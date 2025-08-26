@@ -203,3 +203,101 @@ pub struct ContestAdminWithUser {
     pub username: String,
     pub email: String,
 }
+
+// Plugin system models
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Plugin {
+    pub id: Uuid,
+    pub name: String,
+    pub version: String,
+    pub author: String,
+    pub description: String,
+    pub plugin_type: String, // 'contest', 'problem', 'utility'
+    pub wasm_path: String,
+    pub config_schema: serde_json::Value,
+    pub capabilities: Vec<String>,
+    pub status: String, // 'installed', 'active', 'disabled', 'error'
+    pub installed_at: DateTime<Utc>,
+    pub last_loaded_at: Option<DateTime<Utc>>,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PluginPermission {
+    pub id: Uuid,
+    pub plugin_id: Uuid,
+    pub capability: String,
+    pub database_access_level: String, // 'none', 'read_only', 'read_write', 'schema_admin'
+    pub rate_limit_requests_per_second: i32,
+    pub rate_limit_db_queries_per_minute: i32,
+    pub rate_limit_events_per_minute: i32,
+    pub granted_at: DateTime<Utc>,
+    pub granted_by: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PluginHttpRoute {
+    pub id: Uuid,
+    pub plugin_id: Uuid,
+    pub path: String,
+    pub method: String,
+    pub handler_function: String,
+    pub required_permission: Option<String>,
+    pub rate_limit_override: Option<i32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct PluginUiRoute {
+    pub id: Uuid,
+    pub plugin_id: Uuid,
+    pub scope: String, // 'contest', 'problem', 'admin', 'global'
+    pub path: String,
+    pub component: String,
+    pub required_permission: Option<String>,
+    pub nav_link: bool,
+    pub nav_text: Option<String>,
+    pub nav_order: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct WorkerNode {
+    pub id: Uuid,
+    pub node_id: String,
+    pub host_address: String,
+    pub port: i32,
+    pub capabilities: Vec<String>,
+    pub max_concurrent_jobs: i32,
+    pub current_load: i32,
+    pub status: String, // 'online', 'offline', 'maintenance', 'overloaded'
+    pub last_heartbeat: DateTime<Utc>,
+    pub registered_at: DateTime<Utc>,
+    pub metadata: serde_json::Value,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Event {
+    pub id: Uuid,
+    pub event_type: String,
+    pub source_plugin_id: Option<Uuid>,
+    pub source_user_id: Option<Uuid>,
+    pub source_contest_id: Option<Uuid>,
+    pub source_submission_id: Option<Uuid>,
+    pub payload: serde_json::Value,
+    pub timestamp: DateTime<Utc>,
+    pub processed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct JudgingQueueItem {
+    pub id: Uuid,
+    pub submission_id: Uuid,
+    pub priority: i32,
+    pub created_at: DateTime<Utc>,
+    pub claimed_at: Option<DateTime<Utc>>,
+    pub claimed_by: Option<String>,
+    pub max_retries: i32,
+    pub retry_count: i32,
+    pub status: String, // 'pending', 'claimed', 'completed', 'failed', 'retrying'
+    pub error_message: Option<String>,
+    pub metadata: serde_json::Value,
+}

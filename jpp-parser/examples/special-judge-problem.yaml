@@ -1,0 +1,31 @@
+# Special Judge Problem Example  
+# This demonstrates how to define a problem with custom output validation
+
+id: "C001"
+title: "Multiple Valid Outputs"
+time_limit_ms: 1000
+memory_limit_kb: 262144
+
+judging:
+  type: "judicia/special-judge@1.0"
+  checker:
+    source: "judge/checker.cpp"
+    language: "cpp.g++17"
+    compile_flags: ["-O2", "-std=c++17"]
+  # Checker receives: input_file output_file answer_file
+  checker_args: ["--precision", "1e-9"]
+
+statement:
+  format: markdown
+  source: "statement.md" 
+  language: "en"
+
+test_cases:
+  input_pattern: "tests/*.in"
+  output_pattern: "tests/*.ans"  # Expected answers for checker
+
+metadata:
+  difficulty: "hard"
+  tags: ["special-judge", "geometry", "precision"]
+  author: "Problem Setter"
+  note: "This problem accepts multiple valid outputs"

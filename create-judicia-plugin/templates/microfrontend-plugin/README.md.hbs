@@ -1,0 +1,155 @@
+# {{pascal-case name}} Plugin
+
+{{description}}
+
+This is a micro frontend plugin for the Judicia Platform, built using Module Federation for dynamic loading and integration.
+
+## Development
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm
+- Judicia Platform development environment
+
+### Setup
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
+```
+
+The plugin will be available at `http://localhost:{{add port 5000}}` and will expose:
+- `./Plugin` - Main plugin entry point
+- `./{{camel-case name}}Component` - Main component
+
+### Building
+
+```bash
+# Build for production
+pnpm build
+```
+
+The built files will be in the `dist/` directory, with `remoteEntry.js` being the main federation entry point.
+
+## Integration
+
+### Plugin Registration
+
+To register this plugin with the host application:
+
+```typescript
+import { usePluginRegistry } from '@judicia/frontend-sdk';
+
+const registry = usePluginRegistry();
+
+await registry.registerPlugin({
+  id: '{{kebab-case name}}',
+  name: '{{pascal-case name}}',
+  version: '1.0.0',
+  author: '{{author}}',
+  description: '{{description}}',
+  // ... other metadata
+}, {
+  name: '{{kebab-case name}}',
+  url: 'http://localhost:{{add port 5000}}/assets/remoteEntry.js',
+  scope: '{{kebab-case name}}',
+  module: './Plugin',
+  type: 'module',
+});
+```
+
+### Using Components
+
+```typescript
+import { DynamicComponent } from '@judicia/frontend-sdk';
+
+// Render the plugin component
+<DynamicComponent 
+  name="{{camel-case name}}Component"
+  pluginId="{{kebab-case name}}"
+  props={{
+    // component props
+  }}
+/>
+```
+
+## Architecture
+
+This plugin follows the Judicia micro frontend architecture:
+
+- **Module Federation**: For dynamic loading and shared dependencies
+- **Judicia SDK**: For platform integration (API, events, notifications)
+- **Component Isolation**: Each plugin runs in its own context
+- **Shared State**: Access to global platform state when needed
+
+## API Integration
+
+The plugin uses the Judicia SDK for all platform interactions:
+
+```typescript
+import { useJudiciaSDK } from '@judicia/frontend-sdk';
+
+const sdk = useJudiciaSDK();
+
+// API calls
+const data = await sdk.api.get('/{{kebab-case name}}/data');
+
+// Event handling
+sdk.events.on('someEvent', handler);
+sdk.events.emit('customEvent', payload);
+
+// Notifications
+sdk.notifications.show({
+  type: 'success',
+  title: 'Success',
+  message: 'Operation completed'
+});
+```
+
+## Plugin Capabilities
+
+This plugin can request the following capabilities:
+
+- `read_problems` - Read problem data
+- `write_problems` - Create/update problems
+- `read_submissions` - Read submission data
+- `register_components` - Register UI components
+- `register_routes` - Register routes
+- `emit_events` - Emit platform events
+
+## Deployment
+
+For production deployment:
+
+1. Build the plugin: `pnpm build`
+2. Deploy the `dist/` folder to your CDN/static hosting
+3. Update the plugin registry with the production URL
+4. The platform will automatically load the plugin
+
+## Development Tips
+
+- Use the browser dev tools to inspect the module federation loading
+- Check the Network tab to see remote entry loading
+- Use React Developer Tools to inspect component tree
+- Monitor console for plugin loading errors
+
+## Troubleshooting
+
+### Plugin not loading
+- Check that the remote entry URL is accessible
+- Verify the scope and module names match the federation config
+- Ensure shared dependencies are compatible
+
+### Component errors
+- Check that all required props are passed
+- Verify SDK usage follows the documentation
+- Check browser console for detailed errors
+
+### Build issues
+- Ensure all dependencies are properly installed
+- Check TypeScript configuration
+- Verify Vite configuration is correct

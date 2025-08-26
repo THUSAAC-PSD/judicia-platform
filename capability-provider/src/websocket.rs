@@ -1,0 +1,1 @@
+// WebSocket capability implementations placeholder

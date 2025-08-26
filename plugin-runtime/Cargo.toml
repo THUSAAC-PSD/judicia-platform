@@ -1,0 +1,21 @@
+[package]
+name = "plugin-runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmtime = { workspace = true }
+wasmtime-wasi = { workspace = true }
+tokio = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+async-trait = { workspace = true }
+dashmap = { workspace = true }
+chrono = { workspace = true }
+shared = { path = "../shared" }
+capability-provider = { path = "../capability-provider" }
+event-bus = { path = "../event-bus" }
