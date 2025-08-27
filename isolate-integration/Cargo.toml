@@ -1,0 +1,12 @@
+[package]
+name = "isolate-integration"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+
+[[example]]
+name = "sandbox_usage"
+path = "examples/sandbox_usage.rs"

@@ -12,6 +12,7 @@ members = [
     "jpp-parser",          # JPP (Judicia Problem Package) parser
     "cli-tools",           # CLI tools for plugin development
     "judicia-sdk",         # New Plugin SDK with procedural macros
+    "isolate-integration", # Isolate integration crate
 ]
 exclude = [
     "plugins/*",           # Exclude plugin directories from workspace
