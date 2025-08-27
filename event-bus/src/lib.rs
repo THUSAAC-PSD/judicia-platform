@@ -40,6 +40,8 @@ pub trait EventBus {
     async fn subscribe(&self, pattern: &str, subscriber_id: Uuid) -> Result<mpsc::Receiver<Event>>;
     async fn unsubscribe(&self, subscriber_id: Uuid) -> Result<()>;
 }
+
+#[derive(Debug)]
 struct ConsumerInfo {
     pattern: String,
     shutdown_sender: oneshot::Sender<()>,
@@ -47,7 +49,7 @@ struct ConsumerInfo {
 
 pub struct RabbitMQEventBus {
     connection: Connection,
-    subscriptions: Arc<DashMap<Uuid, ConsumerInfo>>, // subscriber_id -> ConsumerInfo
+    subscriptions: Arc<DashMap<Uuid, Vec<ConsumerInfo>>>, // subscriber_id -> ConsumerInfo
 }
 
 impl RabbitMQEventBus {
@@ -104,7 +106,7 @@ impl EventBus for RabbitMQEventBus {
         let channel = self.connection.create_channel().await?;
         
         // Create a queue for this subscriber
-        let queue_name = format!("subscriber_{}", subscriber_id);
+        let queue_name = format!("subscriber_{}_{}", subscriber_id, pattern);
         let queue_options = QueueDeclareOptions {
             durable: false,
             exclusive: true,
@@ -144,7 +146,10 @@ impl EventBus for RabbitMQEventBus {
         let (tx, rx) = mpsc::channel(100);
         
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
-        self.subscriptions.insert(subscriber_id, ConsumerInfo { pattern: pattern.to_string(), shutdown_sender: shutdown_tx });
+        self.subscriptions.entry(subscriber_id).or_default().push(ConsumerInfo {
+            pattern: pattern.to_string(),
+            shutdown_sender: shutdown_tx,
+        });
         let subscription_clone = self.subscriptions.clone();
 
         // Spawn task to handle incoming events
@@ -186,8 +191,8 @@ impl EventBus for RabbitMQEventBus {
     }
     
     async fn unsubscribe(&self, subscriber_id: Uuid) -> Result<()> {
-        if let Some((_, shutdown_tx)) = self.subscriptions.remove(&subscriber_id) {
-            let _ = shutdown_tx.shutdown_sender.send(());
+        if let Some((_, consumers)) = self.subscriptions.remove(&subscriber_id) {
+            let _ = consumers.into_iter().map(|c| c.shutdown_sender.send(())).collect::<Vec<_>>();
             tracing::info!("Sent shutdown signal to subscriber {}", subscriber_id);
         } else {
             tracing::warn!("Attempted to unsubscribe non-existent subscriber {}", subscriber_id);
