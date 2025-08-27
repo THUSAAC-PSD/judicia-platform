@@ -8,7 +8,7 @@ use lapin::{
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 pub mod events;
@@ -40,10 +40,14 @@ pub trait EventBus {
     async fn subscribe(&self, pattern: &str, subscriber_id: Uuid) -> Result<mpsc::Receiver<Event>>;
     async fn unsubscribe(&self, subscriber_id: Uuid) -> Result<()>;
 }
+struct ConsumerInfo {
+    pattern: String,
+    shutdown_sender: oneshot::Sender<()>,
+}
 
 pub struct RabbitMQEventBus {
     connection: Connection,
-    subscriptions: Arc<DashMap<Uuid, String>>, // subscriber_id -> pattern
+    subscriptions: Arc<DashMap<Uuid, ConsumerInfo>>, // subscriber_id -> ConsumerInfo
 }
 
 impl RabbitMQEventBus {
@@ -101,10 +105,16 @@ impl EventBus for RabbitMQEventBus {
         
         // Create a queue for this subscriber
         let queue_name = format!("subscriber_{}", subscriber_id);
+        let queue_options = QueueDeclareOptions {
+            durable: false,
+            exclusive: true,
+            auto_delete: true,
+            ..Default::default()
+        };
         channel
             .queue_declare(
                 &queue_name,
-                QueueDeclareOptions::default(),
+                queue_options,
                 FieldTable::default(),
             )
             .await?;
@@ -120,40 +130,70 @@ impl EventBus for RabbitMQEventBus {
             )
             .await?;
         
+        let consumer_tag = format!("consumer_{}", subscriber_id);
         // Create consumer
         let mut consumer = channel
             .basic_consume(
                 &queue_name,
-                &format!("consumer_{}", subscriber_id),
+                &consumer_tag,
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
             .await?;
         
         let (tx, rx) = mpsc::channel(100);
-        self.subscriptions.insert(subscriber_id, pattern.to_string());
         
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel::<()>();
+        self.subscriptions.insert(subscriber_id, ConsumerInfo { pattern: pattern.to_string(), shutdown_sender: shutdown_tx });
+        let subscription_clone = self.subscriptions.clone();
+
         // Spawn task to handle incoming events
         tokio::spawn(async move {
-            while let Some(delivery) = consumer.next().await {
-                if let Ok(delivery) = delivery {
-                    if let Ok(event) = serde_json::from_slice::<Event>(&delivery.data) {
-                        if tx.send(event).await.is_err() {
-                            break; // Receiver dropped
+            loop {
+                tokio::select! {
+                    Some(delivery) = consumer.next() => {
+                        if let Ok(delivery) = delivery {
+                            if let Ok(event) = serde_json::from_slice::<Event>(&delivery.data) {
+                                if tx.send(event).await.is_err() {
+                                    tracing::warn!("Receiver for subscriber {} dropped. Shutting down consumer.", subscriber_id);
+                                    break;
+                                }
+                            }
+                            let _ = delivery.ack(BasicAckOptions::default()).await;
                         }
+                    },
+                    _ = &mut shutdown_rx => {
+                        tracing::info!("Shutdown signal received for subscriber {}. Closing consumer.", subscriber_id);
+                        break;
+                    },
+                    else => {
+                        break;
                     }
-                    let _ = delivery.ack(BasicAckOptions::default()).await;
                 }
             }
+
+            tracing::debug!("Cleaning up resources for subscriber {}", subscriber_id);
+            if let Err(e) = channel.basic_cancel(&consumer_tag, BasicCancelOptions::default()).await {
+                 tracing::error!("Failed to cancel consumer for {}: {}", subscriber_id, e);
+            }
+            let _ = channel.queue_delete(&queue_name, QueueDeleteOptions::default()).await;
+
+            subscription_clone.remove(&subscriber_id);
+            tracing::info!("Consumer and resources for subscriber {} cleaned up.", subscriber_id);
         });
         
         Ok(rx)
     }
     
     async fn unsubscribe(&self, subscriber_id: Uuid) -> Result<()> {
-        self.subscriptions.remove(&subscriber_id);
+        if let Some((_, shutdown_tx)) = self.subscriptions.remove(&subscriber_id) {
+            let _ = shutdown_tx.shutdown_sender.send(());
+            tracing::info!("Sent shutdown signal to subscriber {}", subscriber_id);
+        } else {
+            tracing::warn!("Attempted to unsubscribe non-existent subscriber {}", subscriber_id);
+        }
         
-        // TODO: Clean up RabbitMQ queue and consumer
+        // Clean up RabbitMQ queue and consumer
         // This requires keeping track of channels and consumers
         
         Ok(())
