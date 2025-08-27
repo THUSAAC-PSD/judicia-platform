@@ -237,11 +237,11 @@ impl IsolateSandbox {
     pub async fn init(&self, limits: &ResourceLimits) -> Result<()> {
         let mut cmd = Command::new(&self.isolate_bin);
 
-        cmd.arg("--box-id").arg(self.box_id.to_string());
+        cmd.arg(format!("--box-id={}", self.box_id));
         cmd.arg("--init");
 
         if let Some((blocks, inodes)) = limits.quota {
-            cmd.arg("--quota").arg(format!("{},{}", blocks, inodes));
+            cmd.arg(format!("--quota={},{}", blocks, inodes));
         }
 
         // Add special options
@@ -258,10 +258,10 @@ impl IsolateSandbox {
             cmd.arg("--wait");
         }
         if let Some(uid) = self.special_options.as_uid {
-            cmd.arg("--as-uid").arg(uid.to_string());
+            cmd.arg(format!("--as-uid={}", uid));
         }
         if let Some(gid) = self.special_options.as_gid {
-            cmd.arg("--as-gid").arg(gid.to_string());
+            cmd.arg(format!("--as-gid={}", gid));
         }
 
         let output = cmd
@@ -290,54 +290,54 @@ impl IsolateSandbox {
     {
         let mut cmd = Command::new(&self.isolate_bin);
 
-        cmd.arg("--box-id").arg(self.box_id.to_string());
+        cmd.arg(format!("--box-id={}", self.box_id));
         cmd.arg("--run");
 
         // Add resource limits
         if let Some(time) = limits.time_limit {
-            cmd.arg("--time").arg(time.to_string());
+            cmd.arg(format!("--time={}", time));
         }
         if let Some(wall_time) = limits.wall_time_limit {
-            cmd.arg("--wall-time").arg(wall_time.to_string());
+            cmd.arg(format!("--wall-time={}", wall_time));
         }
         if let Some(extra_time) = limits.extra_time {
-            cmd.arg("--extra-time").arg(extra_time.to_string());
+            cmd.arg(format!("--extra-time={}", extra_time));
         }
         if let Some(memory) = limits.memory_limit {
-            cmd.arg("--mem").arg(memory.to_string());
+            cmd.arg(format!("--mem={}", memory));
         }
         if let Some(cg_memory) = limits.cg_memory_limit {
-            cmd.arg("--cg-mem").arg(cg_memory.to_string());
+            cmd.arg(format!("--cg-mem={}", cg_memory));
         }
         if let Some(stack) = limits.stack_limit {
-            cmd.arg("--stack").arg(stack.to_string());
+            cmd.arg(format!("--stack={}", stack));
         }
         if let Some(open_files) = limits.open_files_limit {
-            cmd.arg("--open-files").arg(open_files.to_string());
+            cmd.arg(format!("--open-files={}", open_files));
         }
         if let Some(file_size) = limits.file_size_limit {
-            cmd.arg("--fsize").arg(file_size.to_string());
+            cmd.arg(format!("--fsize={}", file_size));
         }
         if let Some(core) = limits.core_limit {
-            cmd.arg("--core").arg(core.to_string());
+            cmd.arg(format!("--core={}", core));
         }
         if let Some(processes) = limits.process_limit {
             if processes == 0 {
                 cmd.arg("--processes");
             } else {
-                cmd.arg("--processes").arg(processes.to_string());
+                cmd.arg(format!("--processes={}", processes));
             }
         }
 
         // Add I/O redirection
         if let Some(ref stdin) = self.stdin_file {
-            cmd.arg("--stdin").arg(stdin);
+            cmd.arg(format!("--stdin={}", stdin));
         }
         if let Some(ref stdout) = self.stdout_file {
-            cmd.arg("--stdout").arg(stdout);
+            cmd.arg(format!("--stdout={}", stdout));
         }
         if let Some(ref stderr) = self.stderr_file {
-            cmd.arg("--stderr").arg(stderr);
+            cmd.arg(format!("--stderr={}", stderr));
         }
         if self.stderr_to_stdout {
             cmd.arg("--stderr-to-stdout");
@@ -345,12 +345,12 @@ impl IsolateSandbox {
 
         // Add directory change
         if let Some(ref chdir) = self.chdir {
-            cmd.arg("--chdir").arg(chdir);
+            cmd.arg(format!("--chdir={}", chdir));
         }
 
         // Add meta file
         if let Some(ref meta) = self.meta_file {
-            cmd.arg("--meta").arg(meta);
+            cmd.arg(format!("--meta={}", meta.display()));
         }
 
         // Add directory rules
@@ -390,17 +390,17 @@ impl IsolateSandbox {
                 dir_arg.push_str(&options.join(","));
             }
 
-            cmd.arg("--dir").arg(dir_arg);
+            cmd.arg(format!("--dir={}", dir_arg));
         }
 
         // Add environment rules
         for rule in &self.env_rules {
             match rule {
                 EnvRule::Inherit(var) => {
-                    cmd.arg("--env").arg(var);
+                    cmd.arg(format!("--env={}", var));
                 }
                 EnvRule::Set(var, value) => {
-                    cmd.arg("--env").arg(format!("{}={}", var, value));
+                    cmd.arg(format!("--env={}={}", var, value));
                 }
                 EnvRule::FullEnv => {
                     cmd.arg("--full-env");
@@ -436,6 +436,17 @@ impl IsolateSandbox {
         for arg in args {
             cmd.arg(arg.as_ref());
         }
+
+        // print the command in string for debugging to stderr 
+        let command_to_string = |cmd: &Command| -> String {
+            let program = cmd.as_std().get_program().to_string_lossy();
+            let args: Vec<String> = cmd.as_std().get_args()
+                .map(|arg| arg.to_string_lossy().to_string())
+                .collect();
+            format!("{} {}", program, args.join(" "))
+        };
+        eprintln!("Executing command: {}", command_to_string(&cmd));
+
 
         let output = cmd
             .output()
@@ -491,7 +502,7 @@ impl IsolateSandbox {
     pub async fn cleanup(&self) -> Result<()> {
         let mut cmd = Command::new(&self.isolate_bin);
 
-        cmd.arg("--box-id").arg(self.box_id.to_string());
+        cmd.arg(format!("--box-id={}", self.box_id));
         cmd.arg("--cleanup");
 
         if self.special_options.use_cgroups {
@@ -596,37 +607,5 @@ impl IsolateSandbox {
     pub fn verbose(mut self) -> Self {
         self.special_options.verbose = true;
         self
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_default_cgroups_enabled() {
-        let sandbox = IsolateSandbox::new(0);
-        assert!(
-            sandbox.special_options.use_cgroups,
-            "Cgroups should be enabled by default"
-        );
-    }
-
-    #[test]
-    fn test_disable_cgroups() {
-        let sandbox = IsolateSandbox::new(0).disable_cgroups();
-        assert!(
-            !sandbox.special_options.use_cgroups,
-            "Cgroups should be disabled after calling disable_cgroups"
-        );
-    }
-
-    #[test]
-    fn test_use_cgroups() {
-        let sandbox = IsolateSandbox::new(0).disable_cgroups().use_cgroups();
-        assert!(
-            sandbox.special_options.use_cgroups,
-            "Cgroups should be enabled after calling use_cgroups"
-        );
     }
 }

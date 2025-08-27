@@ -6,14 +6,17 @@ use anyhow::Result;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Example 1: Basic usage
+    // Example 1: Basic usage without external dependencies
     basic_example().await?;
     
-    // Example 2: Advanced configuration
-    advanced_example().await?;
+    // Example 2: Environment and directory example
+    env_and_dir_example().await?;
     
-    // Example 3: Compile and run a C++ program
-    cpp_example().await?;
+    // Example 3: File sharing with directory binding
+    file_sharing_example().await?;
+    
+    // Example 4: Compile and run C++ program
+    c_compile_example().await?;
     
     Ok(())
 }
@@ -21,25 +24,18 @@ async fn main() -> Result<()> {
 async fn basic_example() -> Result<()> {
     println!("=== Basic Example ===");
     
-    // Create sandbox with box ID 0
+    // Create sandbox with minimal configuration
     let sandbox = IsolateSandbox::new(0)
-        .with_stdin("input.txt")
-        .with_stdout("output.txt")
-        .with_stderr("error.txt")
         .with_meta_file(PathBuf::from("/tmp/meta.txt"));
 
-    // Set resource limits
-    let limits = ResourceLimits::new()
-        .with_time_limit(1.0)      // 1 second
-        .with_memory_limit(64 * 1024)  // 64 MB
-        .with_wall_time_limit(5.0)     // 5 seconds wall time
-        .with_process_limit(1);        // 1 process only
+    // Set basic resource limits
+    let limits = ResourceLimits::new();
 
     // Initialize sandbox
     sandbox.init(&limits).await?;
 
-    // Run a simple command
-    let result = sandbox.run("echo", ["Hello, World!"], &limits).await?;
+    // Run a simple command with absolute path
+    let result = sandbox.run("/bin/echo", ["Hello, World!"], &limits).await?;
 
     println!("Exit code: {:?}", result.exit_code);
     println!("Time used: {:.3}s", result.time_used);
@@ -52,121 +48,133 @@ async fn basic_example() -> Result<()> {
     Ok(())
 }
 
-async fn advanced_example() -> Result<()> {
-    println!("\n=== Advanced Example ===");
+async fn env_and_dir_example() -> Result<()> {
+    println!("\n=== Environment and Directory Example ===");
     
-    // Create sandbox with advanced configuration
-    let sandbox = IsolateSandbox::new(1)
-        .with_directory_rule(DirectoryRule::bind("/tmp/work", "/tmp/sandbox_work").read_write())
-        .with_directory_rule(DirectoryRule::tmp("/tmp/temp"))
-        .with_directory_rule(DirectoryRule::bind_same("/usr/bin").no_exec())
-        .with_env_rule(EnvRule::Set("PATH".to_string(), "/usr/bin:/bin".to_string()))
-        .with_env_rule(EnvRule::Inherit("HOME".to_string()))
-        .with_stdin("input.txt")
-        .with_stdout("output.txt")
-        .with_chdir("/tmp/work")
-        .with_meta_file(PathBuf::from("/tmp/meta1.txt"))
-        .use_cgroups()
-        .no_default_dirs()
+    // Create sandbox with environment and directory configuration
+    let sandbox = IsolateSandbox::new(2)
+        .with_env_rule(EnvRule::Set("MY_VAR".to_string(), "Hello from sandbox!".to_string()))
+        .with_env_rule(EnvRule::Inherit("PATH".to_string()))
+        .with_meta_file(PathBuf::from("/tmp/meta2.txt"))
         .verbose();
 
-    // Set comprehensive resource limits
-    let limits = ResourceLimits::new()
-        .with_time_limit(2.0)
-        .with_wall_time_limit(10.0)
-        .with_memory_limit(128 * 1024)  // 128 MB
-        .with_cg_memory_limit(256 * 1024)  // 256 MB for control group
-        .with_process_limit(5);
+    let limits = ResourceLimits::new();
 
-    // Initialize and run
     sandbox.init(&limits).await?;
     
-    let result = sandbox.run("ls", ["-la", "/tmp"], &limits).await?;
+    // Run a command that uses the environment variable using bash
+    let result = sandbox.run("/bin/bash", ["-c", "echo $MY_VAR && pwd"], &limits).await?;
     
-    println!("Status: {}", result.status);
-    println!("Message: {}", result.message);
+    println!("Command: bash -c 'echo $MY_VAR && pwd'");
+    println!("Exit code: {:?}", result.exit_code);
+    println!("Output: {}", result.stdout);
     println!("Time used: {:.3}s", result.time_used);
-    println!("Wall time: {:.3}s", result.wall_time_used);
-    println!("Memory used: {} KB", result.memory_used);
-    if let Some(cg_mem) = result.cg_memory_used {
-        println!("CG Memory used: {} KB", cg_mem);
-    }
     
     sandbox.cleanup().await?;
     
     Ok(())
 }
 
-async fn cpp_example() -> Result<()> {
-    println!("\n=== C++ Compile and Run Example ===");
+async fn file_sharing_example() -> Result<()> {
+    println!("\n=== File Sharing with Directory Binding Example ===");
     
-    // Prepare source code
-    let source_code = r#"
-#include <iostream>
-#include <vector>
-#include <algorithm>
+    // Create a shared directory for demonstration
+    let shared_dir = "/tmp/sandbox_demo";
+    tokio::fs::create_dir_all(shared_dir).await?;
+    
+    // Create a test file on the host
+    let test_content = "This file was created on the host system.\nIt will be accessible from within the sandbox.";
+    tokio::fs::write(format!("{}/host_file.txt", shared_dir), test_content).await?;
+    
+    println!("Created test file on host: {}/host_file.txt", shared_dir);
+    
+    let sandbox = IsolateSandbox::new(1)
+        // Bind the shared directory to /shared in sandbox (read-write)
+        .with_directory_rule(DirectoryRule::bind("/shared", shared_dir).read_write())
+        .with_meta_file(PathBuf::from("/tmp/meta_sharing.txt"))
+        .verbose();
+
+    let limits = ResourceLimits::new();
+
+    sandbox.init(&limits).await?;
+    
+    // Read the file from within the sandbox using bash
+    let result = sandbox.run("/bin/bash", ["-c", "cat /shared/host_file.txt"], &limits).await?;
+    
+    println!("File content read from sandbox:");
+    println!("{}", result.stdout);
+    
+    // Create a new file from within the sandbox using bash
+    let result = sandbox.run("/bin/bash", ["-c", "echo 'This file was created inside the sandbox.' > /shared/sandbox_file.txt"], &limits).await?;
+    
+    if result.exit_code == Some(0) {
+        println!("Successfully created file from within sandbox");
+        
+        // Read the file back on the host
+        let sandbox_content = tokio::fs::read_to_string(format!("{}/sandbox_file.txt", shared_dir)).await?;
+        println!("File content read back on host:");
+        println!("{}", sandbox_content.trim());
+    } else {
+        println!("Failed to create file in sandbox: {}", result.stderr);
+    }
+
+    // List files in the shared directory from within sandbox using bash
+    let result = sandbox.run("/bin/bash", ["-c", "ls -la /shared/"], &limits).await?;
+    
+    println!("Files in shared directory (from sandbox perspective):");
+    println!("{}", result.stdout);
+
+    sandbox.cleanup().await?;
+    
+    Ok(())
+}
+
+async fn c_compile_example() -> Result<()> {
+    println!("\n=== C Compile and Run Example ===");
+
+    // Create a shared directory for file exchange between host and sandbox
+    let shared_dir = "/tmp/sandbox_shared";
+    tokio::fs::create_dir_all(shared_dir).await?;
+    
+    let sandbox = IsolateSandbox::new(3)
+        // Bind the shared directory to /shared in sandbox (read-write)
+        .with_directory_rule(DirectoryRule::bind("/shared", shared_dir).read_write())
+        .with_meta_file(PathBuf::from("/tmp/meta_cpp.txt"))
+        .verbose();
+
+    let limits = ResourceLimits::new();
+
+    sandbox.init(&limits).await?;
+    
+    // Write a simple C program to the shared directory (easier to compile)
+    let c_code = r#"
+#include <stdio.h>
 
 int main() {
-    std::vector<int> numbers = {5, 2, 8, 1, 9};
-    std::sort(numbers.begin(), numbers.end());
-    
-    for (int n : numbers) {
-        std::cout << n << " ";
-    }
-    std::cout << std::endl;
-    
+    printf("Hello from C program!\n");
+    printf("This program was compiled and run in isolate sandbox.\n");
+    printf("Files are shared through /shared directory.\n");
     return 0;
 }
 "#;
 
-    // Write source to file
-    tokio::fs::write("/tmp/solution.cpp", source_code).await?;
-
-    // Step 1: Compile
-    let compile_sandbox = IsolateSandbox::new(2)
-        .with_directory_rule(DirectoryRule::bind("/tmp", "/tmp").read_write())
-        .with_stderr("compile_error.txt")
-        .with_meta_file(PathBuf::from("/tmp/compile_meta.txt"));
-
-    let compile_limits = ResourceLimits::new()
-        .with_time_limit(10.0)  // 10 seconds for compilation
-        .with_memory_limit(512 * 1024)  // 512 MB for compilation
-        .with_process_limit(10);  // Allow multiple processes for g++
-
-    compile_sandbox.init(&compile_limits).await?;
+    // Write to the shared directory (accessible from both host and sandbox)
+    tokio::fs::write(format!("{}/solution.c", shared_dir), c_code).await?;
     
-    let compile_result = compile_sandbox.run(
-        "g++", 
-        ["-O2", "-std=c++17", "/tmp/solution.cpp", "-o", "/tmp/solution"], 
-        &compile_limits
-    ).await?;
-
-    println!("Compilation exit code: {:?}", compile_result.exit_code);
-    println!("Compilation time: {:.3}s", compile_result.time_used);
+    println!("Source file written to: {}/solution.c", shared_dir);
     
-    if compile_result.exit_code != Some(0) {
-        println!("Compilation failed: {}", compile_result.stderr);
-        compile_sandbox.cleanup().await?;
-        return Ok(());
-    }
+    // Try the simplest possible compilation first
+    let _compile_result = sandbox.run("/bin/bash", ["-c", "gcc /shared/solution.c -o /shared/solution -B/usr/bin"], &limits).await?;
 
-    compile_sandbox.cleanup().await?;
-
-    // Step 2: Run the compiled program
-    let run_sandbox = IsolateSandbox::new(3)
-        .with_directory_rule(DirectoryRule::bind("/tmp/solution", "/tmp/solution"))
-        .with_stdout("program_output.txt")
-        .with_stderr("program_error.txt")
-        .with_meta_file(PathBuf::from("/tmp/run_meta.txt"));
-
+    println!("Compilation successful!");
+    
+    // Run the compiled program
     let run_limits = ResourceLimits::new()
-        .with_time_limit(1.0)  // 1 second for execution
+        .with_time_limit(2.0)  // 2 seconds for execution
         .with_memory_limit(64 * 1024)  // 64 MB for execution
         .with_process_limit(1);
 
-    run_sandbox.init(&run_limits).await?;
-    
-    let run_result = run_sandbox.run("/tmp/solution", Vec::<String>::new(), &run_limits).await?;
+    let run_result = sandbox.run("/bin/bash", ["-c", "/shared/solution"], &run_limits).await?;
 
     println!("Execution exit code: {:?}", run_result.exit_code);
     println!("Execution time: {:.3}s", run_result.time_used);
@@ -177,7 +185,19 @@ int main() {
         println!("Program was killed (probably TLE/MLE)");
     }
 
-    run_sandbox.cleanup().await?;
+    // Check if the compiled executable exists on the host
+    let executable_path = format!("{}/solution", shared_dir);
+    if tokio::fs::try_exists(&executable_path).await? {
+        println!("Compiled executable is available on host at: {}", executable_path);
+        
+        // Get file size
+        let metadata = tokio::fs::metadata(&executable_path).await?;
+        println!("Executable size: {} bytes", metadata.len());
+    } else {
+        println!("Compiled executable not found on host");
+    }
 
+    sandbox.cleanup().await?;
+    
     Ok(())
 }

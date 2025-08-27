@@ -24,7 +24,9 @@ cd isolate
 make && sudo make install
 ```
 
-同时请确保系统支持 cgroup v2。
+关于 `isolate` 的配置，参阅 [isolate document](https://github.com/ioi/isolate/blob/master/isolate.1.txt) 的 `INSTALLATION` 部分。
+
+如果需要使用 `cgroup` 相关特性（推荐，如 `--cg-mem` 选项），请确保系统支持 cgroup v2。
 
 ## 基本用法
 
@@ -56,10 +58,10 @@ async fn main() -> anyhow::Result<()> {
     // 运行命令
     let result = sandbox.run("echo", ["Hello, World!"], &limits).await?;
 
-    println!("退出码: {:?}", result.exit_code);
-    println!("执行时间: {:.3}s", result.time_used);
-    println!("内存使用: {} KB", result.cg_memory_used);
-    println!("输出: {}", result.stdout);
+    println!("exit code: {:?}", result.exit_code);
+    println!("time: {:.3}s", result.time_used);
+    println!("memory: {} KB", result.cg_memory_used);
+    println!("output: {}", result.stdout);
 
     // 清理沙箱
     sandbox.cleanup().await?;
